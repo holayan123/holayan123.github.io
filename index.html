@@ -864,6 +864,7 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       if(arr.length>SNAP_MAX)arr=arr.slice(0,SNAP_MAX);
       localStorage.setItem(SNAP_KEY,JSON.stringify(arr));
       dirtyBak=true;
+      try{scheduleCloudSync();}catch(e){}
     }catch(e){}
   }
   function restoreSnap(){
@@ -923,6 +924,75 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
     localStorage.setItem('lz_baktip',String(last));
     toast('已累计 '+last+' 条记录，建议去「我的→备份与恢复」导出备份');
   }
+  /* ===== GitHub 云备份（自动同步到你的仓库） ===== */
+  var GH_CFG_KEY='lz_ghcfg', ghTimer=null;
+  function ghLoadCfg(){try{return JSON.parse(localStorage.getItem(GH_CFG_KEY)||'{}');}catch(e){return {};}}
+  function ghSaveCfg(c){try{localStorage.setItem(GH_CFG_KEY,JSON.stringify(c));}catch(e){}}
+  function ghEnabled(){var c=ghLoadCfg();return !!(c&&c.enabled&&c.token&&c.owner&&c.repo);}
+  function ghB64e(s){return btoa(unescape(encodeURIComponent(s)));}
+  function ghB64d(b){return decodeURIComponent(escape(atob(String(b).replace(/\s/g,''))));}
+  function ghPathEnc(p){return String(p||'').split('/').map(encodeURIComponent).join('/');}
+  function ghApi(cfg,method,path,body){
+    var url='https://api.github.com/repos/'+encodeURIComponent(cfg.owner)+'/'+encodeURIComponent(cfg.repo)+'/contents/'+ghPathEnc(path);
+    return fetch(url,{method:method,headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token},body:body?JSON.stringify(body):undefined}).then(function(r){
+      return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {ok:r.ok,status:r.status,data:j,text:t};});
+    });
+  }
+  function ghBuildObj(){var o=JSON.parse(buildFullBackup());o._meta.savedAt=new Date().toISOString();return o;}
+  function ghPush(){
+    if(!ghEnabled())return Promise.reject(new Error('云备份未启用或未配置'));
+    var cfg=ghLoadCfg();
+    var obj=ghBuildObj();
+    var content=ghB64e(JSON.stringify(obj));
+    return ghApi(cfg,'GET',cfg.path).then(function(res){
+      var sha=(res.ok&&res.data)?res.data.sha:undefined;
+      var body={message:'生活志自动备份 '+obj._meta.savedAt,content:content};
+      if(sha)body.sha=sha;
+      return ghApi(cfg,'PUT',cfg.path,body);
+    }).then(function(res){
+      if(!res.ok)throw new Error((res.data&&res.data.message)||('HTTP '+res.status));
+      var t=Date.now();localStorage.setItem('lz_lastpush',t);
+      var el=$('ghStatus');if(el)el.textContent='已同步 '+fmtSnap(t);
+      return true;
+    });
+  }
+  function ghPull(){
+    if(!ghEnabled())return Promise.reject(new Error('云备份未启用或未配置'));
+    var cfg=ghLoadCfg();
+    return ghApi(cfg,'GET',cfg.path).then(function(res){
+      if(res.status===404)throw new Error('云端暂无备份');
+      if(!res.ok)throw new Error((res.data&&res.data.message)||('HTTP '+res.status));
+      return JSON.parse(ghB64d(res.data.content));
+    });
+  }
+  function ghRestoreFromCloud(){
+    ghPull().then(function(obj){
+      var keys=['ledger','habit','habit_log','schedule','shopping','media'].filter(function(k){return obj&&obj[k];});
+      if(!keys.length){toast('云端没有可恢复的数据');return;}
+      if(!confirm('将用 GitHub 云端备份覆盖当前数据（'+keys.length+' 张表）。确定？'))return;
+      runImport(obj,keys);
+    }).catch(function(e){toast('恢复失败：'+(e&&e.message||e));});
+  }
+  function scheduleCloudSync(){
+    if(!ghEnabled())return;
+    if(ghTimer)clearTimeout(ghTimer);
+    ghTimer=setTimeout(function(){
+      ghTimer=null;
+      ghPush().catch(function(e){var el=$('ghStatus');if(el)el.textContent='同步失败：'+(e&&e.message||e);});
+    },8000);
+  }
+  function ghInitSync(){
+    if(!ghEnabled())return;
+    ghPull().then(function(obj){
+      var remoteT=obj&&obj._meta&&obj._meta.savedAt?Date.parse(obj._meta.savedAt):0;
+      var localT=+(localStorage.getItem('lz_lastpush')||0);
+      var el=$('ghStatus');
+      if(remoteT>localT){
+        var keys=['ledger','habit','habit_log','schedule','shopping','media'].filter(function(k){return obj[k];});
+        if(keys.length){runImport(obj,keys);toast('已从 GitHub 恢复更新的备份');}
+      } else if(el){el.textContent='云端已是最新';}
+    }).catch(function(){});
+  }
   function loadTable(key,sorts,acc,cur){
     acc=acc||[];
     return apiQuery(key,{sorts:sorts,startCursor:cur,pageSize:500}).then(function(r){
@@ -956,7 +1026,7 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
     });
     jobs.push(loadSettings());
     return Promise.all(jobs).then(function(){
-      loaded=true;sync(false);renderAll();checkBakTip();
+      loaded=true;sync(false);renderAll();checkBakTip();ghInitSync();
     }).catch(function(err){
       sync(false,true);
       var msg=(err&&err.message||String(err))+'　数据未能全部载入。';
@@ -2684,6 +2754,25 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       '<div class="hint">点下方按钮，把全部数据生成 JSON，通过系统分享存到「文件 / iCloud」。这份文件不受清缓存、换链接影响，是唯一真正安全的备份。</div></div>'+
       '<button class="btn" id="bakFile" style="background:#7FA189;color:#fff;border:none">☁ 一键备份到本机文件</button>'+
       '<div id="bakBadge" style="display:none;margin-top:8px;font-size:12px;color:var(--red)">有改动尚未备份到文件，点上方按钮保存。</div>'+
+      '<div class="sec"><div class="t">GitHub 云备份（自动同步）</div></div>'+
+      '<div class="box">'+
+      '<div class="barrow"><div class="l"><span>启用云备份</span><span class="rt"><input type="checkbox" id="ghOn"></span></div></div>'+
+      '<div id="ghForm" style="display:none;margin-top:4px">'+
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">GitHub 用户名</div>'+
+      '<input id="ghOwner" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none">'+
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">仓库名</div>'+
+      '<input id="ghRepo" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none">'+
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">Token（需 repo 权限）</div>'+
+      '<input id="ghToken" type="password" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none" placeholder="ghp_... 或 github_pat_...">'+
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">备份文件路径</div>'+
+      '<input id="ghPath" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none" placeholder="data/shenghuozhi-backup.json">'+
+      '</div>'+
+      '<div class="hint">数据会写入你仓库的 <b id="ghPathHint">data/shenghuozhi-backup.json</b>。Token 仅存于本机，需该仓库 <b>repo</b> 权限（公开仓库用 public_repo 即可）。开启后，每次改动会在这个 App 里自动上传，清缓存 / 换设备都丢不了。</div>'+
+      '<div id="ghStatus" style="font-size:12px;color:var(--muted);margin-top:6px">未同步</div>'+
+      '</div>'+
+      '<button class="btn" id="ghPush">立即同步到 GitHub</button>'+
+      '<div class="hint">点「立即同步」会保存配置并上传一次当前全部数据；开启后也会在改动后自动上传。</div>'+
+      '<button class="btn gray" id="ghPullBtn">从 GitHub 恢复</button>'+
       '<div class="sec"><div class="t">恢复（文件）</div></div>'+
       '<input type="file" id="dFile" accept="application/json,.json" style="display:none">'+
       '<button class="btn gray" id="dImp">选择 JSON 文件恢复</button>'+
@@ -2743,6 +2832,27 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
     (function(){var s=listSnaps();if(s.length)$('snapTime').textContent=fmtSnap(s[0].t)+'（共 '+s.length+' 份）';})();
     (function(){var lb=+(localStorage.getItem('lz_lastbak')||0);if(lb&&$('bakTime'))$('bakTime').textContent=fmtSnap(lb);})();
     if(pendingBak){var b=$('bakBadge');if(b)b.style.display='';}
+    /* GitHub 云备份 配置与按钮 */
+    (function(){
+      var cfg=ghLoadCfg();
+      var on=$('ghOn'); if(on)on.checked=!!cfg.enabled;
+      if($('ghOwner')&&cfg.owner)$('ghOwner').value=cfg.owner;
+      if($('ghRepo')&&cfg.repo)$('ghRepo').value=cfg.repo;
+      if($('ghToken')&&cfg.token)$('ghToken').value=cfg.token;
+      if($('ghPath')&&cfg.path)$('ghPath').value=cfg.path; else if($('ghPath'))$('ghPath').value='data/shenghuozhi-backup.json';
+      if($('ghPathHint'))$('ghPathHint').textContent=cfg.path||'data/shenghuozhi-backup.json';
+      if($('ghForm'))$('ghForm').style.display=cfg.enabled?'block':'none';
+      if(on)on.onchange=function(){$('ghForm').style.display=on.checked?'block':'none';var c=ghLoadCfg();c.enabled=on.checked;ghSaveCfg(c);};
+    })();
+    if($('ghPush'))$('ghPush').onclick=function(){
+      var cfg={enabled:$('ghOn').checked,owner:$('ghOwner').value.trim(),repo:$('ghRepo').value.trim(),token:$('ghToken').value.trim(),path:($('ghPath').value.trim()||'data/shenghuozhi-backup.json')};
+      if(!cfg.owner||!cfg.repo||!cfg.token){toast('请填写用户名、仓库名和 Token');return;}
+      ghSaveCfg(cfg);
+      if($('ghPathHint'))$('ghPathHint').textContent=cfg.path;
+      if($('ghStatus'))$('ghStatus').textContent='同步中…';
+      ghPush().then(function(){if($('ghStatus'))$('ghStatus').textContent='已同步 '+fmtSnap(+(localStorage.getItem('lz_lastpush')||Date.now()));toast('已同步到 GitHub');}).catch(function(e){if($('ghStatus'))$('ghStatus').textContent='同步失败：'+(e&&e.message||e);toast('同步失败：'+(e&&e.message||e));});
+    };
+    if($('ghPullBtn'))$('ghPullBtn').onclick=ghRestoreFromCloud;
   }};
   function chunk(arr,n,fn){
     var i=0;
