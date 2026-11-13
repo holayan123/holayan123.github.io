@@ -907,19 +907,17 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
     return JSON.stringify(out,null,2);
   }
   function doBackup(manual){
-    if(!manual && isStandaloneMode()){
-      // 加到主屏幕的网页在后台无法静默保存文件，也不弹框打扰；若已开启 GitHub 云备份则视为已备份
-      pendingBak = ghEnabled() ? false : true;
-      return;
-    }
     var txt=buildFullBackup(), name='生活志备份-'+TODAY+'.json';
     try{
-      var how=saveOut(name,'application/json',txt);
+      var how=saveOut(name,'application/json',txt, !manual); // 自动备份静默，绝不弹框
       localStorage.setItem('lz_lastbak',Date.now());
       var bt=$('bakTime'); if(bt)bt.textContent=fmtSnap(Date.now());
-      dirtyBak=false; pendingBak=false;
-      var bd=$('bakBadge'); if(bd)bd.style.display='none';
-      toast(manual?(how==='share'?'已生成备份，请在分享面板选「存储到文件」':how==='manual'?'已生成备份，请复制保存':'已备份'):'已自动备份到文件');
+      dirtyBak=false;
+      // how==='manual' 表示当前环境无法静默存文件；自动备份且未开云备份时保留角标提醒，其余清除
+      var reallySaved=(how!=='manual');
+      if(!manual && !reallySaved && !ghEnabled()){ pendingBak=true; }
+      else { pendingBak=false; var bd=$('bakBadge'); if(bd)bd.style.display='none'; }
+      if(manual) toast(how==='share'?'已生成备份，请在分享面板选「存储到文件」':how==='manual'?'已生成备份，请复制保存':'已备份');
     }catch(e){toast('备份失败：'+(e&&e.message||e));}
   }
   document.addEventListener('visibilitychange',function(){
@@ -2761,7 +2759,7 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       '</div>'+
       '<button class="btn" id="bakFile" style="background:#7FA189;color:#fff;border:none">☁ 一键备份到本机文件</button>'+
       '<div id="bakBadge" style="display:none;margin-top:8px;font-size:12px;color:var(--red)">有改动尚未备份到文件，点上方按钮保存。</div>'+
-      '<div class="sec"><div class="t">GitHub 云备份（自动同步）· 11-12 版</div></div>'+
+      '<div class="sec"><div class="t">GitHub 云备份（自动同步）· 11-13b 已修后台弹窗</div></div>'+
       '<div class="box">'+
       '<div class="barrow" id="ghToggleRow" style="cursor:pointer"><div class="l" style="margin-bottom:0"><span>启用云备份</span><span class="ghswitch"><input type="checkbox" id="ghOn" style="display:none"><span class="track"></span><span class="knob"></span></span></div><div style="font-size:11px;color:#A09D95;margin-top:2px">点击这一行即可展开／收起下方设置</div></div>'+
       '<div id="ghForm" style="display:none;margin-top:4px;padding:0 15px">'+
@@ -3018,22 +3016,22 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
   function isStandaloneMode(){
     return (window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);
   }
-  function saveOut(name,mime,text){
+  function saveOut(name,mime,text,silent){
     var standalone=isStandaloneMode();
     var file=null;
     try{ file=new File([text],name,{type:mime}); }catch(e){ file=null; }
     if(standalone){
-      if(navigator.share&&file){
+      if(!silent && navigator.share&&file){
         var can=true;
         try{ if(navigator.canShare&&!navigator.canShare({files:[file]}))can=false; }catch(e){ can=true; }
         if(can){
           try{
-            navigator.share({files:[file],title:name}).catch(function(){ showTextFallback(name,text); });
+            navigator.share({files:[file],title:name}).catch(function(){ if(!silent) showTextFallback(name,text); });
             return 'share';
           }catch(e){}
         }
       }
-      showTextFallback(name,text);
+      if(!silent) showTextFallback(name,text);
       return 'manual';
     }
     try{
@@ -3044,7 +3042,7 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       document.body.appendChild(a);a.click();
       setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},400);
       return 'download';
-    }catch(e){ showTextFallback(name,text); return 'manual'; }
+    }catch(e){ if(!silent) showTextFallback(name,text); return 'manual'; }
   }
   /* 兜底：无法下载/分享时，直接把内容摊出来给复制，保证永不「点了没反应」 */
   function showTextFallback(name,text){
