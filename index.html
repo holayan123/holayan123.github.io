@@ -907,6 +907,11 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
     return JSON.stringify(out,null,2);
   }
   function doBackup(manual){
+    if(!manual && isStandaloneMode()){
+      // 加到主屏幕的网页在后台无法静默保存文件，也不弹框打扰；若已开启 GitHub 云备份则视为已备份
+      pendingBak = ghEnabled() ? false : true;
+      return;
+    }
     var txt=buildFullBackup(), name='生活志备份-'+TODAY+'.json';
     try{
       var how=saveOut(name,'application/json',txt);
