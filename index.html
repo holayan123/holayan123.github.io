@@ -2741,29 +2741,24 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       '<input type="date" id="expTo" style="flex:1;min-width:0;border:none;background:transparent;font-size:15px;color:#45443F;height:100%;outline:none">'+
       '</div>'+
       '</div>'+
-      '<div class="hint">留空=不限。仅对带日期的表生效：记账 / 习惯打卡 / 日程 / 习惯；待买、书影音无日期维度，仍完整导出。</div>'+
       '</div>'+
       '<button class="btn" id="dExp">导出全部数据（JSON）</button>'+
-      '<div class="hint">会把 6 张表 + 设置打包成一个 JSON 文件下载到本地，纯读取，不改动云端</div>'+
       '<button class="btn" id="dExpXQ">导出为「小青账」格式（CSV）</button>'+
-      '<div class="hint">表头已按小青账自身导出的账单模板对齐（收支类型 / 账单类型 / 金额 / 分类 / 子分类 / 记账日期 / 备注信息 / 标签 等 18 列）。导出的文件在小青账里「账单管理 → 账单导入 → 选择来源：小青账」即可直接导入，无需改表头。</div>'+
       '<div class="sec"><div class="t">从 小青账 导入</div></div>'+
       '<input type="file" id="xqFile" accept=".csv,.txt,.xls,.xlsx" style="display:none">'+
       '<button class="btn" id="xqImp">选择 小青账 账单文件导入</button>'+
-      '<div class="hint">支持 小青账 导出的 CSV / Excel。自动识别日期、金额、收支类型、分类、备注、账户、标签，并追加到当前账本。Excel 解析需在本页已内置解析库的环境下进行。</div>'+
       '<div class="sec"><div class="t">本地自动快照（软备份）</div></div>'+
       '<div class="box"><div class="barrow"><div class="l"><span>最近快照</span><span class="rt" id="snapTime">—</span></div></div>'+
-      '<div class="hint">每次增删改自动留一份本地快照（最多 '+SNAP_MAX+' 份），与账本同处本机存储，清缓存会一起丢，仅作应急。</div></div>'+
+      '</div>'+
       '<button class="btn" id="snapRest">从最近快照恢复</button>'+
       '<div class="sec"><div class="t">硬备份到本机文件（推荐）</div></div>'+
       '<div class="box"><div class="barrow"><div class="l"><span>上次备份到文件</span><span class="rt" id="bakTime">—</span></div></div>'+
-      '<div class="hint">点下方按钮，把全部数据生成 JSON，通过系统分享存到「文件 / iCloud」。这份文件不受清缓存、换链接影响，是唯一真正安全的备份。</div></div>'+
+      '</div>'+
       '<button class="btn" id="bakFile" style="background:#7FA189;color:#fff;border:none">☁ 一键备份到本机文件</button>'+
       '<div id="bakBadge" style="display:none;margin-top:8px;font-size:12px;color:var(--red)">有改动尚未备份到文件，点上方按钮保存。</div>'+
       '<div class="sec"><div class="t">GitHub 云备份（自动同步）· 11-12 版</div></div>'+
       '<div class="box">'+
       '<div class="barrow" id="ghToggleRow" style="cursor:pointer"><div class="l" style="margin-bottom:0"><span>启用云备份</span><span class="ghswitch"><input type="checkbox" id="ghOn" style="display:none"><span class="track"></span><span class="knob"></span></span></div><div style="font-size:11px;color:#A09D95;margin-top:2px">点击这一行即可展开／收起下方设置</div></div>'+
-      '<div class="hint" style="margin-top:6px">点「启用云备份」这一行，下方会出现「用户名 / 仓库名 / Token」填写框。</div>'+
       '<div id="ghForm" style="display:none;margin-top:4px">'+
       '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">GitHub 用户名</div>'+
       '<input id="ghOwner" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none">'+
@@ -2774,16 +2769,13 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">备份文件路径</div>'+
       '<input id="ghPath" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none" placeholder="data/shenghuozhi-backup.json">'+
       '</div>'+
-      '<div class="hint">数据会写入你仓库的 <b id="ghPathHint">data/shenghuozhi-backup.json</b>。Token 仅存于本机，需该仓库 <b>repo</b> 权限（公开仓库用 public_repo 即可）。开启后，每次改动会在这个 App 里自动上传，清缓存 / 换设备都丢不了。</div>'+
       '<div id="ghStatus" style="font-size:12px;color:var(--muted);margin-top:6px">未同步</div>'+
       '</div>'+
       '<button class="btn" id="ghPush">立即同步到 GitHub</button>'+
-      '<div class="hint">点「立即同步」会保存配置并上传一次当前全部数据；开启后也会在改动后自动上传。</div>'+
       '<button class="btn gray" id="ghPullBtn">从 GitHub 恢复</button>'+
       '<div class="sec"><div class="t">恢复（文件）</div></div>'+
       '<input type="file" id="dFile" accept="application/json,.json" style="display:none">'+
-      '<button class="btn gray" id="dImp">选择 JSON 文件恢复</button>'+
-      '<div class="hint" style="color:var(--red)">恢复会先清空云端对应表的现有记录，再写入文件里的数据，请谨慎操作。建议先导出一份当前数据备份。</div>';
+      '<button class="btn gray" id="dImp">选择 JSON 文件恢复</button>';
     $('dExp').onclick=function(){
       var from=($('expFrom')&&$('expFrom').value)||'', to=($('expTo')&&$('expTo').value)||'';
       function inRange(d){
