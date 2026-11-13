@@ -314,6 +314,12 @@ svg{display:block}
 .barrow:active{background:var(--line2)}
 .barrow .l{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
 .barrow .l .rt{color:var(--muted);font-variant-numeric:tabular-nums}
+.ghswitch{position:relative;display:inline-block;width:48px;height:28px;flex:0 0 auto;margin-left:10px}
+.ghswitch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:2}
+.ghswitch .track{position:absolute;inset:0;background:#D6D2C8;border-radius:999px;transition:background .2s}
+.ghswitch .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.ghswitch input:checked ~ .track{background:#7FA189}
+.ghswitch input:checked ~ .knob{transform:translateX(20px)}
 .barrow .tk{height:6px;background:var(--line2);border-radius:99px;overflow:hidden}
 .barrow .fl{height:100%;border-radius:99px}
 .trend{display:flex;align-items:flex-end;gap:5px;height:88px;padding:14px 15px 0}
@@ -2754,9 +2760,10 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       '<div class="hint">点下方按钮，把全部数据生成 JSON，通过系统分享存到「文件 / iCloud」。这份文件不受清缓存、换链接影响，是唯一真正安全的备份。</div></div>'+
       '<button class="btn" id="bakFile" style="background:#7FA189;color:#fff;border:none">☁ 一键备份到本机文件</button>'+
       '<div id="bakBadge" style="display:none;margin-top:8px;font-size:12px;color:var(--red)">有改动尚未备份到文件，点上方按钮保存。</div>'+
-      '<div class="sec"><div class="t">GitHub 云备份（自动同步）</div></div>'+
+      '<div class="sec"><div class="t">GitHub 云备份（自动同步）· 11-12 版</div></div>'+
       '<div class="box">'+
-      '<div class="barrow"><div class="l"><span>启用云备份</span><span class="rt"><input type="checkbox" id="ghOn"></span></div></div>'+
+      '<div class="barrow" id="ghToggleRow" style="cursor:pointer"><div class="l" style="margin-bottom:0"><span>启用云备份</span><span class="ghswitch"><input type="checkbox" id="ghOn" style="display:none"><span class="track"></span><span class="knob"></span></span></div><div style="font-size:11px;color:#A09D95;margin-top:2px">点击这一行即可展开／收起下方设置</div></div>'+
+      '<div class="hint" style="margin-top:6px">点「启用云备份」这一行，下方会出现「用户名 / 仓库名 / Token」填写框。</div>'+
       '<div id="ghForm" style="display:none;margin-top:4px">'+
       '<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">GitHub 用户名</div>'+
       '<input id="ghOwner" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #E7E4DD;border-radius:9px;background:#fff;color:#45443F;outline:none">'+
@@ -2842,7 +2849,11 @@ body > div[style*="position:fixed"]:not(.txtfb),body > div[style*="position: fix
       if($('ghPath')&&cfg.path)$('ghPath').value=cfg.path; else if($('ghPath'))$('ghPath').value='data/shenghuozhi-backup.json';
       if($('ghPathHint'))$('ghPathHint').textContent=cfg.path||'data/shenghuozhi-backup.json';
       if($('ghForm'))$('ghForm').style.display=cfg.enabled?'block':'none';
-      if(on)on.onchange=function(){$('ghForm').style.display=on.checked?'block':'none';var c=ghLoadCfg();c.enabled=on.checked;ghSaveCfg(c);};
+      if(on){
+        var tgl=function(){on.checked=!on.checked;$('ghForm').style.display=on.checked?'block':'none';var c=ghLoadCfg();c.enabled=on.checked;ghSaveCfg(c);};
+        if($('ghToggleRow'))$('ghToggleRow').onclick=tgl;
+        on.onchange=tgl;
+      }
     })();
     if($('ghPush'))$('ghPush').onclick=function(){
       var cfg={enabled:$('ghOn').checked,owner:$('ghOwner').value.trim(),repo:$('ghRepo').value.trim(),token:$('ghToken').value.trim(),path:($('ghPath').value.trim()||'data/shenghuozhi-backup.json')};
